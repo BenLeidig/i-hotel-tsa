@@ -1,0 +1,223 @@
+---
+title: "analysis_c"
+author: "Benjamin Leidig, Monte Thomas, Harmony Pham"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#install.packages("rugarch")
+library(ggplot2)
+library(tseries)
+library(rugarch)
+```
+
+
+```{r}
+df <- read.csv("cleaned_hotel_data.csv")
+```
+
+
+```{r}
+head(df)
+df$Date <- as.Date(df$Date, format = "%m/%d/%Y")
+
+ggplot(df, aes(x = Date, y = TOTAL_REVENUE)) +
+  geom_line() +
+  labs(title = "Time Series Plot", x = "Time", y = "Value")
+```
+
+```{r}
+adf.test(df$TOTAL_REVENUE)
+```
+
+```{r}
+df$REVENUE_SQUARED <- df$TOTAL_REVENUE^2
+
+ggplot(df, aes(x = Date, y = REVENUE_SQUARED)) +
+  geom_line() +
+  labs(title = "Squared Values (Checking for Volatility Clustering)",
+       x = "Date", y = "Value Squared") +
+  theme_minimal()
+```
+
+```{r}
+log_return_data <- diff(log(df$TOTAL_REVENUE))
+garch_spec <- ugarchspec(
+  variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+  mean.model = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = "norm" 
+)
+
+garch_fit <- ugarchfit(spec = garch_spec, data = log_return_data)
+
+show(garch_fit)
+```
+Alpha1 + Beta1 is 0.3, which is closer to zero than it is to 1, so we can conclude that volatility is not highly persistent.
+
+After conducting the Sign bias test we find that positive shocks do affect future volitility. And since the joint effect is significant, assymetry exists within the data.
+
+Increases in hotel revenue tend to cause larger changes (more uncertainty/volatility) in the future than decreases in hotel revenue.
+
+Normal GARCH models opperate on the assumption of symmetry (positive and negative shocks influence volitility the same). In our data we see that positive shocks influence volitility, but negative shocks don't. Due to this we will proceed with a GARCH model that allows for asymmetry to exist within the data.
+
+```{r}
+gjr_spec <- ugarchspec(
+  variance.model = list(model = "gjrGARCH", garchOrder = c(1,1)),
+  mean.model = list(armaOrder = c(0,0), include.mean = TRUE),
+  distribution.model = "norm"
+)
+
+gjr_fit <- ugarchfit(spec = gjr_spec, data = log_return_data)
+
+show(gjr_fit)
+
+```
+```{r}
+plot(gjr_fit, which = 1)
+plot(gjr_fit, which = 2)
+plot(gjr_fit, which = 3)
+plot(gjr_fit, which = 4)
+plot(gjr_fit, which = 5)
+plot(gjr_fit, which = 6)
+plot(gjr_fit, which = 7)
+plot(gjr_fit, which = 8)
+plot(gjr_fit, which = 9)
+plot(gjr_fit, which = 10)
+plot(gjr_fit, which = 11)
+plot(gjr_fit, which = 12)
+```
+
+The normal QQ plot has heavy tails and the ACF plots shows spikes at lags 7, 14, 21, etc.
+We will proceed by trying a different underlying distribution (Student's t) to deal with the heaviny tails, and changing the ARMA order to (7,0) to see if this helps meet our disgnostic assumtions.
+
+```{r}
+gjr_7_spec <- ugarchspec(
+  variance.model = list(model = "gjrGARCH", garchOrder = c(1,1)),
+  mean.model = list(armaOrder = c(7,0), include.mean = TRUE),
+  distribution.model = "norm"
+)
+
+gjr_fit_7 <- ugarchfit(spec = gjr_7_spec, data = log_return_data)
+
+show(gjr_fit_7)
+```
+
+The model now explicitly accounts for asymmetry through the gamma1 parameter.
+
+We fitted a GJR-GARCH(1,1) model to hotel revenue returns and found that positive revenue shocks significantly increased future volatility, consistent with revenue spikes creating uncertainty in operations and demand forecasts. The GJR-GARCH model accounted for this asymmetry better than a standard GARCH(1,1).
+
+```{r}
+plot(gjr_fit_7, which = 1)
+plot(gjr_fit_7, which = 2)
+plot(gjr_fit_7, which = 3)
+plot(gjr_fit_7, which = 4)
+plot(gjr_fit_7, which = 5)
+plot(gjr_fit_7, which = 6)
+plot(gjr_fit_7, which = 7)
+plot(gjr_fit_7, which = 8)
+plot(gjr_fit_7, which = 9)
+plot(gjr_fit_7, which = 10)
+plot(gjr_fit_7, which = 11)
+plot(gjr_fit_7, which = 12)
+```
+
+
+
+```{r}
+gjr_t_spec <- ugarchspec(
+  variance.model = list(model = "gjrGARCH", garchOrder = c(1,1)),
+  mean.model = list(armaOrder = c(0,0), include.mean = TRUE),
+  distribution.model = "std"  
+)
+
+gjr_t_fit <- ugarchfit(spec = gjr_t_spec, data = log_return_data)
+show(gjr_t_fit)
+
+```
+```{r}
+plot(gjr_t_fit, which = 1)
+plot(gjr_t_fit, which = 2)
+plot(gjr_t_fit, which = 3)
+plot(gjr_t_fit, which = 4)
+plot(gjr_t_fit, which = 5)
+plot(gjr_t_fit, which = 6)
+plot(gjr_t_fit, which = 7)
+plot(gjr_t_fit, which = 8)
+plot(gjr_t_fit, which = 9)
+plot(gjr_t_fit, which = 10)
+plot(gjr_t_fit, which = 11)
+plot(gjr_t_fit, which = 12)
+
+```
+
+```{r}
+gjr_t7_spec <- ugarchspec(
+  variance.model = list(model = "gjrGARCH", garchOrder = c(1,1)),
+  mean.model = list(armaOrder = c(7,0), include.mean = TRUE),
+  distribution.model = "std"  
+)
+
+gjr_t7_fit <- ugarchfit(spec = gjr_t7_spec, data = log_return_data)
+show(gjr_t7_fit)
+
+```
+
+
+```{r}
+plot(gjr_t7_fit, which = 1)
+plot(gjr_t7_fit, which = 2)
+plot(gjr_t7_fit, which = 3)
+plot(gjr_t7_fit, which = 4)
+plot(gjr_t7_fit, which = 5)
+plot(gjr_t7_fit, which = 6)
+plot(gjr_t7_fit, which = 7)
+plot(gjr_t7_fit, which = 8)
+plot(gjr_t7_fit, which = 9)
+plot(gjr_t7_fit, which = 10)
+plot(gjr_t7_fit, which = 11)
+plot(gjr_t7_fit, which = 12)
+```
+
+```{r}
+#Normal + ARMA(0,0) model
+infocriteria(gjr_fit)
+
+#Normal + AR(7) model
+infocriteria(gjr_fit_7)
+
+
+#Student-t + ARMA(0,0) model
+infocriteria(gjr_t_fit)
+
+#Student-t + AR(7) model
+infocriteria(gjr_t7_fit)
+
+```
+```{r}
+likelihood(gjr_fit)      # Normal ARMA(0,0)
+likelihood(gjr_fit_7)    # Normal AR(7)
+likelihood(gjr_t_fit)    # Student-t ARMA(0,0)
+likelihood(gjr_t7_fit)   # Student-t AR(7)
+
+```
+
+```{r}
+forecast_gjr_t7 <- ugarchforecast(gjr_t7_fit, n.ahead = 10)
+plot(forecast_gjr_t7)
+
+```
+The Student-t AR(7) appears to have performed the best by the following model criteria:
+Largest likelihood value, smallest AIC
+
+Over the next 10 days, some slight increase in uncertainty is expected,
+but volatility should stabilize and remain moderate.
+
+```{r}
+forecast_gjr_t7
+sigma_forecast <- sigma(forecast_gjr_t7)
+print(sigma_forecast)
+
+```
+

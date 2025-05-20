@@ -1,0 +1,180 @@
+---
+title: "Project Proposal"
+author: "Benjamin Leidig, Monte Thomas, Harmony Pham"
+date: "2025-03-26"
+output: pdf_document
+---
+
+### Section: GR
+
+
+
+
+### Research Questions
+* How can we forecast daily hotel total revenue using historical revenue data?
+* Are there seasonal fluctuations in daily total hotel revenue?
+* Do any external events (sport events, family weekends, etc.) effect daily hotel total revenue?
+
+
+
+
+### Potential Sources
+* (https://medium.com/@chenycy/predict-hotel-demands-leveraging-time-series-forecasting-techniques-62e25606f273)
+* (https://pure.psu.edu/en/publications/forecasting-hotel-occupancy-rates-with-time-series-models-an-empi)
+
+
+
+
+```{r setup, include=FALSE, root.dir = "C:/Users/dacn/Desktop/429-project"}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tseries)
+library(astsa)
+```
+
+
+
+\newpage
+### Dataset Cleaning
+
+```{r}
+# Create a function to clean data
+clean_hotel_data <- function(file_path, year){
+  read.csv(file_path) %>%
+    pivot_longer(cols = -X, names_to = "Date", values_to = "Value") %>%
+    pivot_wider(names_from = "X", values_from = "Value") %>%
+    mutate(
+      Date = str_remove(Date, "^[A-Za-z]+") %>% 
+             paste0(".", year) %>%  
+             mdy(),
+      Weekday = wday(Date, label = TRUE)
+    ) %>%
+    select(Date, Weekday, Occupancy, ADR, TOTAL_REVENUE)
+}
+```
+
+```{r}
+# Apply function to data1 (year 2024)
+data1 <- clean_hotel_data("hoteldata24.csv", "2024")
+
+# Apply function to data2 (year 2025)
+data2 <- clean_hotel_data("hoteldata25.csv", "2025")
+
+# Combine datasets
+hotel_data <- bind_rows(data1, data2)
+str(hotel_data)
+head(hotel_data)
+
+# Saving the new dataset as a CSV
+write.csv(hotel_data, "cleaned_hotel_data.csv", row.names = FALSE)
+```
+
+
+
+\newpage
+## Visualizations
+
+```{r}
+summary(hotel_data)
+```
+
+\newpage
+### Occupancy Rate Visualizations
+
+```{r}
+# Plot Occupancy over Time
+ggplot(hotel_data, aes(x = Date, y = Occupancy)) +
+  geom_line(color = "black", linewidth = 0.5) +
+  geom_point(color = "black", size = 1) +
+  geom_smooth(method = "lm", color = "red", se = FALSE, linewidth = 1, linetype = 2) +
+  labs(title = "Hotel Occupancy Over Time",
+       x = "Date",
+       y = "Occupancy") +
+  theme_minimal()
+```
+```{r}
+# Plot Occupancy distribution
+ggplot(hotel_data, aes(x = Occupancy)) +
+  geom_histogram(bins = 10, fill = "gray", color = "black") +
+  labs(title = "Distribution of Occupancy",
+       x = "Occupancy",
+       y = "Frequency") +
+  theme_minimal()
+```
+```{r}
+acf(hotel_data$Occupancy, main = 'Occupancy')
+adf.test(hotel_data$Occupancy); kpss.test(hotel_data$Occupancy, null = 'Trend')
+```
+
+
+\newpage
+### ADR Visualizations
+
+```{r}
+# Plot ADR over Time
+ggplot(hotel_data, aes(x = Date, y = ADR)) +
+  geom_line(color = "black", linewidth = 0.5) +
+  geom_point(color = "black", size = 1) +
+  geom_smooth(method = "lm", color = "red", se = FALSE, linewidth = 1, linetype = 2) +
+  labs(title = "Hotel ADR Over Time",
+       x = "Date",
+       y = "ADR") +
+  theme_minimal()
+```
+```{r}
+# Plot ADR distribution
+ggplot(hotel_data, aes(x = ADR)) +
+  geom_histogram(bins = 10, fill = "grey", color = "black") +
+  labs(title = "Distribution of ADR",
+       x = "ADR",
+       y = "Frequency") +
+  theme_minimal()
+```
+```{r}
+acf(hotel_data$ADR, main = 'ADR')
+adf.test(hotel_data$ADR); kpss.test(hotel_data$ADR, null = 'Trend')
+```
+
+\newpage
+### Total Revenue Visualizations
+
+```{r}
+# Plot TOTAL_REVENUE over Time
+ggplot(hotel_data, aes(x = Date, y = TOTAL_REVENUE)) +
+  geom_line(color = "black", linewidth = 0.5) +
+  geom_point(color = "black", size = 1) +
+  geom_smooth(method = "lm", color = "red", se = FALSE, linewidth = 1, linetype = 2) +
+  labs(title = "Hotel TOTAL_REVENUE Over Time",
+       x = "Date",
+       y = "TOTAL_REVENUE") +
+  theme_minimal()
+adf.test(hotel_data$TOTAL_REVENUE); kpss.test(hotel_data$TOTAL_REVENUE, null = 'Trend')
+```
+
+```{r}
+# Plot TOTAL_REVENUE distribution
+ggplot(hotel_data, aes(x = TOTAL_REVENUE)) +
+  geom_histogram(bins = 10, fill = "grey", color = "black") +
+  labs(title = "Distribution of TOTAL_REVENUE",
+       x = "TOTAL_REVENUE",
+       y = "Frequency") +
+  theme_minimal()
+```
+```{r}
+acf(hotel_data$TOTAL_REVENUE, main = 'Total Revenue')
+adf.test(hotel_data$TOTAL_REVENUE); kpss.test(hotel_data$TOTAL_REVENUE, null = 'Trend')
+```
+
+
+\newpage
+### Dataset Description
+
+For this project, we are using real data collected from the I Hotel & Illinois Conference Center. The dataset--stored in the dataframe object, `hotel_data`--consists of five variables: `Date` (YYYY-MM-DD), `Weekday` (Sun, Mon, Tue, Wed, Thu, Fri, Sat), `Occupancy` (a percentage represented as a decimal), `ADR` (Average Daily Rate; (room revenue)/(rooms sold); average daily revenue in USD earned per occupant), and `TOTAL_REVENUE` (total daily revenue in USD). Each observations represents an individual day, between 2024/03/28 and 2025/03/27.
+
+Occupancy rates tends to be skewed to the left, with a mode of approximately 0.9. Looking at the time series plot of occupancy rates, there appears to be a non-constant mean function that is decreasing, although there is also a potential seasonal component as well. There appears to be a non-constant variance that increases with time. An ADF test yields a p-value of less than 0.01, meaning that the time series could be stationary. However, a KPSS test (with $H_0:\text{trend stationarity}$) also yields a p-value of less than 0.01, which means the time series isn't trend-stationary, either. Although these test are useful, we conclude via visual inspection that the series is neither stationary nor trend-stationary.
+
+ADR tends to be skewed to the right, with a mode of approximately 150. Looking at the time series plot of ADR, there appears to be a constant mean function, although there is also a strong seasonal component. There appears to be a non-constant variance, with variance increasing during peak seasons and decreasing during the depressions. An ADF test yields a p-value of less than 0.01, meaning that the time series could be stationary. However, a KPSS test (with $H_0:\text{trend stationarity}$) yields a p-value of 0.02373, which, if using a significance level of 0.05, means the time series isn't trend stationary. Although these test are useful, we conclude via visual inspection that the series is neither stationary nor trend-stationary.
+
+Total revenue tends to be skewed to the right, with a mode of approximately 150. Looking at the time series plot of total revenue, there appears to be a non-constant mean function. There is also not a prominent seasonal component. There appears to be a non-constant variance, with variance increasing through April to May and September to November. An ADF test yields a p-value of less than 0.01, meaning that the time series could be stationary. However, a KPSS test (with $H_0:\text{trend stationarity}$) yields a p-value of 0.01311, which, if using a significance level of 0.05, means the time series isn't trend stationary. Although these test are useful, we conclude via visual inspection that the series is neither stationary nor trend-stationary.
+
+According to the sample ACF plots, there is a strong seasonal component in all of the time series. In particular, starting at lag 0 ($h=0$), the sample ACF peaks at increments of 7 (i.e. at $h=7$, $h=14$, $h=21$, etc.). This implies that all three variables have an association with the day of the week.
