@@ -1,0 +1,110 @@
+---
+title: "analysis_B - Revenue"
+author: "Benjamin Leidig, Monte Thomas, Harmony Pham"
+date: "2025-04-24"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(tseries)
+library(astsa)
+```
+
+## R Markdown
+
+```{r data reading}
+hotel_data <- read.csv('cleaned_hotel_data.csv') %>% select(-Occupancy, -ADR) # reading data
+hotel_data$Date <- as.Date(hotel_data$Date, format="%m/%d/%Y") # changing `Date` column to date format
+head(hotel_data)
+```
+
+
+## Dataset Description
+
+```{r histogram}
+summary(hotel_data)
+```
+
+```{r histogram}
+# histogram
+ggplot(hotel_data, aes(x = TOTAL_REVENUE)) +
+  geom_histogram(bins = 10, fill = "lightblue", color = "black") +
+  labs(title = "Distribution of Daily Total Revenue",
+       x = "Total Revenue (USD)",
+       y = "Frequency") +
+  theme_minimal()
+```
+Mean of about $16,466. Right skewed.
+
+```{r weekday seasonality}
+ggplot(hotel_data, aes(x=Weekday, y=TOTAL_REVENUE, fill=Weekday)) +
+  geom_boxplot() +
+  labs(title='Daily Total Revenue by Weekday', y='Total Revenue (USD)') +
+  theme_minimal() +
+  scale_fill_brewer(palette = 'Set3')
+```
+Seasonal (weekly) differences.
+
+
+
+```{r ts plot}
+ggplot(hotel_data, aes(x = Date, y = TOTAL_REVENUE)) +
+  geom_line(color = "darkblue", linewidth = 0.5) +
+  geom_point(color = "black", size = 1) +
+  geom_smooth(method = "lm", color = "red", se = FALSE, linewidth = 0.5, linetype = 2) +
+  labs(title = "Daily Total Revenue Over Time",
+       x = "Date",
+       y = "Total Revenue (USD)") +
+  theme_minimal()
+```
+Not stationary, non-constant mean, non-constant variance, seasonality likely. ADF test yields a p-value below 0.05 -> stationary. Mean is 16466.02.
+
+```{r ts plot}
+tsplot(hotel_data$TOTAL_REVENUE,
+       col="darkblue", lwd=1,
+       main="Total Revenue Over Time", 
+       ylab="Total Revenue")
+acf <- acf2(hotel_data$TOTAL_REVENUE, main="Total Revenue")
+```
+```{r}
+adf.test(hotel_data$TOTAL_REVENUE)
+kpss.test(hotel_data$TOTAL_REVENUE)
+```
+
+```{r seasonal differencing}
+revenue_diff_seasonal <- diff(hotel_data$TOTAL_REVENUE, lag=7)
+tsplot(revenue_diff_seasonal)
+acf2(revenue_diff_seasonal)
+```
+```{r}
+adf.test(revenue_diff_seasonal)
+kpss.test(revenue_diff_seasonal)
+```
+### Model Selection
+
+```{r}
+mod1 <- sarima(hotel_data$TOTAL_REVENUE, p=0, d=0, q=1, P=1, D=0, Q=1, S=7)
+
+mod2 <- sarima(hotel_data$TOTAL_REVENUE, p=1, d=0, q=1, P=1, D=0, Q=1, S=7)
+
+mod3 <- sarima(hotel_data$TOTAL_REVENUE, p=1, d=0, q=2, P=1, D=0, Q=1, S=7)
+```
+
+### Final Model
+
+```{r}
+mod1$ttable;mod2$ttable;mod3$ttable
+
+mod1$ICs
+mod2$ICs
+mod3$ICs
+```
+
+The model 1 is the best model, p=0, d=0, q=1, P=1, D=0, Q=1, S=7.
+
+### Forecasting
+```{r}
+hotel_data
+```
